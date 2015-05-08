@@ -9,18 +9,13 @@
 /**
  * Path to the ARC2 PHP library.
  */
-/*
 if (module_exists('libraries')) {
   //define('RDF_ARC2_PATH', libraries_get_path('ARC2') . '/arc');
-  define('RDF_ARC2_PATH', libraries_get_path('arc'));
+	define('RDF_ARC2_PATH', libraries_get_path('arc'));
 }
 else {
   define('RDF_ARC2_PATH', drupal_get_path('module', 'rdfx') . '/vendor/arc');
 }
-*/
-
-
-require_once(drupal_get_path('module', 'rdfx') . '/vendor/arc/ARC2.php');
 
 /**
  * Implements hook_init().
@@ -136,11 +131,11 @@ function rdfx_get_rdf_model($type, $data) {
    $entity = $wrapper->value();
    //$data = $wrapper->value();
    $property_info = entity_get_property_info($type);
-
+ 
    //$entity_uri = rdfx_resource_uri($type, $id);
    //$entity_uri = rdfx_resource_uri($type, $wrapper->getIdentifier());
    $entity_uri = rdfx_resource_uri($type, $entity);
-
+   
  // end patch
 
   // Instantiates node resource as ARC2 class and set base and namespaces.
@@ -153,7 +148,7 @@ function rdfx_get_rdf_model($type, $data) {
   $index = array();
 
   // Adds the RDF types of the resource if a mapping exists.
-  // Valeria: patch consequence of patch 1 above: $data becomes $entity
+	// Valeria: patch consequence of patch 1 above: $data becomes $entity
   //if (!empty($data->rdf_mapping['rdftype'])) {
     //$index[$entity_uri]['rdf:type'] = $data->rdf_mapping['rdftype'];
   //}
@@ -190,10 +185,10 @@ function rdfx_get_rdf_model($type, $data) {
             if ($li_property instanceof EntityDrupalWrapper || $li_property instanceof EntityValueWrapper) {
               // This assumes that all literals have a 'value' array element
               // and that all resources have a 'uri' array element.
-              // Valeria: two lines below: patch from:
-              // to support link field
+							// Valeria: two lines below: patch from: 
+							// to support link field
               // if ($li_name == 'value' || $li_name == 'uri'){
-              if (in_array($li_name, array('value', 'uri', 'url'))){
+							if (in_array($li_name, array('value', 'uri', 'url'))){
                 rdfx_add_statement($index, $entity_uri, $li_property, $wrapper, $name);
               }
             }
@@ -202,6 +197,8 @@ function rdfx_get_rdf_model($type, $data) {
       }
       catch (EntityMetadataWrapperException $e) {
         // Property not supported. Fail silently.
+        watchdog('LL-rdf', '' . $property->value() . ' Name: ' . $name . ' : RDF mapping not supported');
+        //rdfx_add_literal($index, $entity_uri, $property, $wrapper, $name);
       }
     }
   }
@@ -253,15 +250,15 @@ function rdfx_get_predicates(EntityMetadataWrapper $wrapper, $name) {
  * can have either resource or literal objects.
  */
 function rdfx_add_statement(&$index, $uri, $property, EntityMetadataWrapper $wrapper, $name) {
-
+  
   // Valeria: added code to detect attribute type (empty, "rel" or "rev") and added to IF below
-  // to allow to treat text or link values for certain properties as resources
-  $entity = $wrapper->value();
-  $attrib = "";
-  if(isset($entity->rdf_mapping[$name]['type']))
+	// to allow to treat text or link values for certain properties as resources
+	$entity = $wrapper->value();
+	$attrib = "";
+	if(isset($entity->rdf_mapping[$name]['type']))
     $attrib = $entity->rdf_mapping[$name]['type'];
-
-  if ($property instanceof EntityDrupalWrapper || $attrib == "rel") {
+	
+	if ($property instanceof EntityDrupalWrapper || $attrib == "rel") {
     // For referenced entities only add the resource's URI
     rdfx_add_resource($index, $uri, $property, $wrapper, $name);
   }
@@ -277,14 +274,14 @@ function rdfx_add_resource(&$index, $uri, $property, EntityMetadataWrapper $wrap
   if ($property instanceof EntityDrupalWrapper && $id = $property->getIdentifier()) {
     $predicates = rdfx_get_predicates($wrapper, $name);
     $type = $property->type();
-
+		
     $entities = entity_load($type, array($id));
-
-    // Valeria: patch https://drupal.org/files/1700652_1_rdfx_stale_references.patch
-    //$entity = $entities[$id];
-    //$object_uri = rdfx_resource_uri($type, $entity);
-    //foreach ($predicates as $predicate) {
-    //$index[$uri][$predicate][] = $object_uri;
+		
+		// Valeria: patch https://drupal.org/files/1700652_1_rdfx_stale_references.patch 
+		//$entity = $entities[$id];
+		//$object_uri = rdfx_resource_uri($type, $entity);
+		//foreach ($predicates as $predicate) {
+		//$index[$uri][$predicate][] = $object_uri;
     // Ensure the entity actually exists in the system. This prevents stale
     // references for example to generate errors.
     if (!empty($entities[$id])) {
@@ -293,16 +290,21 @@ function rdfx_add_resource(&$index, $uri, $property, EntityMetadataWrapper $wrap
       foreach ($predicates as $predicate) {
         $index[$uri][$predicate][] = $object_uri;
       }
-      // end of patch
-    }
+			// end of patch
+    }		
   }
-  // Valeria: else added for values that should be treated as resources:
-  else {
+	// Valeria: else added for values that should be treated as resources: 
+	else {
     $predicates = rdfx_get_predicates($wrapper, $name);
     foreach ($predicates as $predicate) {
-      $index[$uri][$predicate][] = $property->value();
+     if ($property->value() && $property->value() != "") {
+       if (!preg_match('/\S/', $property->value()))
+          $index[$uri][$predicate][] = $property->value();
+     }
+     else
+      return;
     }
-  }
+	}
 }
 
 /**
@@ -323,21 +325,42 @@ function rdfx_add_literal(&$index, $uri, $property, EntityMetadataWrapper $wrapp
       $object_value = $entity->rdf_mapping[$name]['callback']($object_value);
     }
   }
-
-  // Valeria: no way to strip tags in the UI, so let's force it here
-  $object_value = strip_tags($object_value);
-  // Valeria: no way to force date format in the UI, so let's force it here
-  if($datatype == "xsd:date")
-     $object_value = date("Y-m-d", $object_value);
-  if($datatype == "xsd:gYear")
-     $object_value = date("Y", $object_value);
-
+	
+	// Semberry patch: no way to strip tags in the UI, so let's force it here
+	$object_value = strip_tags($object_value);
+	// Semberry patch: no way to force date format in the UI, so let's force it here
+	if($datatype == "xsd:date")
+	   $object_value = date("Y-m-d", $object_value);
+	if($datatype == "xsd:gYear")
+	   $object_value = date("Y", $object_value);
+	// end of patch
+  	 
   foreach ($predicates as $predicate) {
-    $index[$uri][$predicate][] = array(
-      'value' => $object_value,
-      'type' => 'literal',
-      'datatype' => $datatype,
-    );
+     //Semberry patch: exclude empty strings
+     if (is_string($object_value) && $object_value != "") {
+       $val = preg_replace('/\s+/', ' ', $object_value);
+       $val = preg_replace('/\t+/', '', $val);
+       $val = str_replace('  ', '', $val);
+       $object_value = trim($val);
+       if (preg_match('/\S/', $object_value)) {
+       // end of patch
+         $index[$uri][$predicate][] = array(
+           'value' => $object_value,
+           'type' => 'literal',
+           'datatype' => $datatype,
+         );
+       }
+    }
+    else {
+         /* debug
+         $index[$uri][$predicate][] = array(
+           'value' => print_r($object_value),
+           'type' => 'literal',
+           'datatype' => $datatype,
+         );
+         */
+         return;
+    }
   }
 }
 
@@ -354,24 +377,70 @@ function rdfx_add_literal(&$index, $uri, $property, EntityMetadataWrapper $wrapp
  */
 function rdfx_resource_uri($type, $entity) {
   $uri = entity_uri($type, $entity);
-  // Patch 1 by Semberry: we need URIs built with IDs, not aliases
-  // and URIs have to coincide with RESTWS URIs (for field collections, "field_collection_item")
+	// Patch 1 by Semberry: we need URIs built with specific string per bundle and then IDs (better: UUIDs), not aliases
+	// Not necessarily URIs have to coincide with RESTWS URIs (for field collections, "field_collection_item")
+  // that can be adjusted in rewrite rules
   //return url($uri['path'], array('absolute' => TRUE));
-  global $base_url;
-  if ($type == "taxonomy_vocabulary")
-    $localURI = $base_url . "/taxonomy_vocabulary/" . $entity->vid;
-  elseif ($type == "taxonomy_term")
-    $localURI = $base_url . "/taxonomy_term/" . $entity->tid;
+	//global $base_url;
+  $base_uri = "http://data.landportal.info"; // hard-coded for Land Library (for now, TODO: make it configurable)
+  list(, , $bundle) = entity_extract_ids($type, $entity);
+	if ($type == "taxonomy_vocabulary") {
+  	  $localURI = $base_uri . "/vocabulary/" . $bundle;
+  }
+  elseif ($type == "taxonomy_term") {
+    switch ($bundle) {
+      case "countries":
+        $uuids = entity_get_uuid_by_id($type, array($entity->tid));
+        $uuid = $uuids[$entity->tid]; 
+  	    $localURI = $base_uri . "/country/" . $uuid;
+        break;
+      case "landportal_topics":
+      case "topics":
+        $uuids = entity_get_uuid_by_id($type, array($entity->tid)); 
+        $uuid = $uuids[$entity->tid]; 
+  	    $localURI = $base_uri . "/topic/" . $uuid;
+        break;
+      default:
+        $uuids = entity_get_uuid_by_id($type, array($entity->tid)); 
+        $uuid = $uuids[$entity->tid]; 
+  	    $localURI = $base_uri . "/concept/" . $uuid;
+    }
+  }
+  elseif ($type == "node") {
+    switch ($bundle) {
+      case "landlibrary_resource":
+        $uuids = entity_get_uuid_by_id($type, array($entity->nid));
+        $uuid = $uuids[$entity->nid]; 
+  	    $localURI = $base_uri . "/library/resource/" . $uuid;
+        break;
+      case "organization":
+        $uuids = entity_get_uuid_by_id($type, array($entity->nid)); 
+        $uuid = $uuids[$entity->nid]; 
+  	    $localURI = $base_uri . "/organization/" . $uuid;
+        break;
+      case "person":
+        $uuids = entity_get_uuid_by_id($type, array($entity->nid)); 
+        $uuid = $uuids[$entity->nid]; 
+  	    $localURI = $base_uri . "/person/" . $uuid;
+        break;
+      case "event":
+        $uuids = entity_get_uuid_by_id($type, array($entity->nid)); 
+        $uuid = $uuids[$entity->nid]; 
+  	    $localURI = $base_uri . "/event/" . $uuid;
+        break;
+      default:
+        $uuids = entity_get_uuid_by_id($type, array($entity->nid)); 
+        $uuid = $uuids[$entity->nid]; 
+  	    $localURI = $base_uri . "/entity/" . $uuid;
+    }
+  }
   elseif ($type == "field_collection_item")
-    $localURI = $base_url . "/field_collection_item/" . $entity->item_id;
+  	$localURI = $base_uri . "/item/" . $entity->item_id;
   else
-    $localURI = $base_url . "/" . $uri['path'];
-  // Patch 2 by Semberry for LandPortal: temporary hardcoded solution for forcing URIs to use agreed pattern:
-  $localURI = str_replace($base_url, "http://data.landportal.info/library", $localURI);
-  // end of patch 2
-  return $localURI;
+	  $localURI = $base_uri . "/" . $uri['path'];
+  return $localURI; 
   // end of patch 1
-
+  
 }
 
 /**
