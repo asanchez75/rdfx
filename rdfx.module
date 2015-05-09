@@ -148,7 +148,7 @@ function rdfx_get_rdf_model($type, $data) {
   $index = array();
 
   // Adds the RDF types of the resource if a mapping exists.
-	// Valeria: patch consequence of patch 1 above: $data becomes $entity
+	// Semberry: patch consequence of patch 1 above: $data becomes $entity
   //if (!empty($data->rdf_mapping['rdftype'])) {
     //$index[$entity_uri]['rdf:type'] = $data->rdf_mapping['rdftype'];
   //}
@@ -185,7 +185,7 @@ function rdfx_get_rdf_model($type, $data) {
             if ($li_property instanceof EntityDrupalWrapper || $li_property instanceof EntityValueWrapper) {
               // This assumes that all literals have a 'value' array element
               // and that all resources have a 'uri' array element.
-							// Valeria: two lines below: patch from: 
+							// Semberry: two lines below: patch from: 
 							// to support link field
               // if ($li_name == 'value' || $li_name == 'uri'){
 							if (in_array($li_name, array('value', 'uri', 'url'))){
@@ -211,9 +211,10 @@ function rdfx_get_rdf_model($type, $data) {
 function rdfx_property_access_filter($wrapper) {
   $filtered = array();
   foreach ($wrapper as $name => $property) {
-    if ($property->access('view')) {
+    //Semberry patch: the filter excludes some structure properties, like Link field urls...
+    //if ($property->access('view')) {
       $filtered[$name] = $property;
-    }
+    //}
   }
   return $filtered;
 }
@@ -251,7 +252,7 @@ function rdfx_get_predicates(EntityMetadataWrapper $wrapper, $name) {
  */
 function rdfx_add_statement(&$index, $uri, $property, EntityMetadataWrapper $wrapper, $name) {
   
-  // Valeria: added code to detect attribute type (empty, "rel" or "rev") and added to IF below
+  // Semberry: added code to detect attribute type (empty, "rel" or "rev") and added to IF below
 	// to allow to treat text or link values for certain properties as resources
 	$entity = $wrapper->value();
 	$attrib = "";
@@ -277,7 +278,7 @@ function rdfx_add_resource(&$index, $uri, $property, EntityMetadataWrapper $wrap
 		
     $entities = entity_load($type, array($id));
 		
-		// Valeria: patch https://drupal.org/files/1700652_1_rdfx_stale_references.patch 
+		// Semberry: patch https://drupal.org/files/1700652_1_rdfx_stale_references.patch 
 		//$entity = $entities[$id];
 		//$object_uri = rdfx_resource_uri($type, $entity);
 		//foreach ($predicates as $predicate) {
@@ -293,12 +294,12 @@ function rdfx_add_resource(&$index, $uri, $property, EntityMetadataWrapper $wrap
 			// end of patch
     }		
   }
-	// Valeria: else added for values that should be treated as resources: 
+	// Semberry: else added for values that should be treated as resources: 
 	else {
     $predicates = rdfx_get_predicates($wrapper, $name);
     foreach ($predicates as $predicate) {
      if ($property->value() && $property->value() != "") {
-       if (!preg_match('/\S/', $property->value()))
+       //if (!preg_match('/\S/', $property->value()))
           $index[$uri][$predicate][] = $property->value();
      }
      else
@@ -384,8 +385,8 @@ function rdfx_resource_uri($type, $entity) {
 	//global $base_url;
   $base_uri = "http://data.landportal.info"; // hard-coded for Land Library (for now, TODO: make it configurable)
   list(, , $bundle) = entity_extract_ids($type, $entity);
-	if ($type == "taxonomy_vocabulary") {
-  	  $localURI = $base_uri . "/vocabulary/" . $bundle;
+	if ($type == "taxonomy_vocabulary" || $type == "taxonomy") {
+  	  $localURI = $base_uri . "/vocabulary/" . $entity->vid;
   }
   elseif ($type == "taxonomy_term") {
     switch ($bundle) {
